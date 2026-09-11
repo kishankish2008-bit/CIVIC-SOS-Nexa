@@ -1,6 +1,12 @@
 {
   "name": "NEXA — Universal Action Bridge",
   "description": "Turn messy real-world input into structured, verified and actionable outcomes.",
-  "requestFramePermissions": ["microphone", "geolocation", "camera"],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "requestFramePermissions": [
+    "microphone",
+    "geolocation",
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
