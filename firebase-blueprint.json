@@ -1,0 +1,90 @@
+{
+  "version": "1.0",
+  "entities": {
+    "User": {
+      "collection": "users",
+      "fields": {
+        "uid": { "type": "string", "required": true },
+        "email": { "type": "string", "required": false },
+        "displayName": { "type": "string", "required": false },
+        "role": { "type": "string", "required": true, "default": "user" },
+        "isEmergencyGuest": { "type": "boolean", "required": true, "default": false },
+        "createdAt": { "type": "timestamp", "required": true }
+      }
+    },
+    "SituationHistory": {
+      "collection": "users/{userId}/history",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "intent": { "type": "string", "required": true },
+        "situation": { "type": "string", "required": true },
+        "urgency": { "type": "string", "enum": ["low", "medium", "high", "critical"], "required": true },
+        "confidence": { "type": "number", "required": true },
+        "createdAt": { "type": "timestamp", "required": true }
+      }
+    },
+    "LocationShareSession": {
+      "collection": "users/{userId}/locationShares",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "recipient": { "type": "string", "required": true },
+        "durationMinutes": { "type": "number", "required": true },
+        "latitude": { "type": "number", "required": true },
+        "longitude": { "type": "number", "required": true },
+        "accuracy": { "type": "number", "required": false },
+        "status": { "type": "string", "enum": ["active", "stopped", "expired"], "required": true },
+        "startedAt": { "type": "timestamp", "required": true },
+        "expiresAt": { "type": "timestamp", "required": true }
+      }
+    },
+    "SecurityAuditLog": {
+      "collection": "audit_logs",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "eventType": { "type": "string", "required": true },
+        "severity": { "type": "string", "enum": ["info", "low", "medium", "high", "critical"], "required": true },
+        "action": { "type": "string", "required": true },
+        "details": { "type": "string", "required": true },
+        "userId": { "type": "string", "required": false },
+        "ipAddress": { "type": "string", "required": false },
+        "timestamp": { "type": "string", "required": true }
+      }
+    }
+  },
+  "securityPolicies": {
+    "appCheck": {
+      "enforced": true,
+      "providers": ["reCAPTCHA Enterprise", "DebugProvider"],
+      "protectedEndpoints": [
+        "/api/bridge/process",
+        "/api/tools/code-exec",
+        "/api/tools/url-context",
+        "/api/routes/traffic-compare",
+        "/api/security/audit-log"
+      ]
+    },
+    "rateLimiting": {
+      "bridgeProcessMaxPerMin": 25,
+      "codeExecMaxPerMin": 15,
+      "urlContextMaxPerMin": 20
+    },
+    "ssrfProtection": {
+      "allowedProtocols": ["https:"],
+      "blockedHosts": [
+        "localhost",
+        "127.0.0.1",
+        "0.0.0.0",
+        "169.254.169.254",
+        "metadata.google.internal",
+        "metadata"
+      ],
+      "blockPrivateIpRanges": true
+    },
+    "actionRiskTiers": {
+      "low": ["formatting", "calculations", "summaries"],
+      "medium": ["save_information", "open_map", "create_draft"],
+      "high": ["share_location", "send_message", "share_personal_info"],
+      "critical": ["emergency_call", "external_emergency_communication", "high_impact_actuation"]
+    }
+  }
+}

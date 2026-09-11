@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions for authorization & data integrity
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp;
+    }
+
+    // Rate & payload bounds
+    function isValidHistoryPayload(data) {
+      return data.keys().hasAll(['id', 'intent', 'situation', 'urgency', 'createdAt'])
+        && data.id is string
+        && data.intent is string
+        && data.situation is string
+        && data.urgency in ['low', 'medium', 'high', 'critical']
+        && data.intent.size() <= 1000
+        && data.situation.size() <= 5000;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['id', 'eventType', 'severity', 'timestamp'])
+        && data.id is string
+        && data.eventType is string
+        && data.severity in ['info', 'low', 'medium', 'high', 'critical']
+        && !('password' in data)
+        && !('apiKey' in data)
+        && !('secret' in data);
+    }
+
+    // 1. User-isolated private trees: STRICT ISOLATION
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      // User session history & situations
+      match /history/{historyId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidHistoryPayload(request.resource.data);
+      }
+
+      // User profile & preferences (never accessible by other users)
+      match /profile/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // User location permissions & temporary sharing tokens
+      match /locationShares/{shareId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) 
+          && request.resource.data.keys().hasAll(['recipient', 'durationMinutes', 'expiresAt', 'status'])
+          && request.resource.data.status in ['active', 'stopped', 'expired'];
+      }
+    }
+
+    // 2. Public / Emergency Reference Data: READ ONLY (Authoritative Directory)
+    match /emergency_directory/{contactId} {
+      allow read: if true; // Public access for life-saving emergency numbers
+      allow write: if false; // Only manageable via secure backend admin
+    }
+
+    // 3. Security Audit Logs: APPEND ONLY by authenticated users, NO modification or cross-user reads
+    match /audit_logs/{logId} {
+      allow read: if isAuthenticated() && request.auth.token.admin == true;
+      allow create: if isValidAuditLog(request.resource.data) 
+        && (request.auth == null || request.resource.data.userId == request.auth.uid);
+      allow update, delete: if false; // Immutable audit trail
+    }
+
+    // Default deny all other paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,58 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Maximum file size: 20MB
+    function isUnderSizeLimit() {
+      return request.resource.size < 20 * 1024 * 1024;
+    }
+
+    // Whitelist safe document, image, and audio formats
+    function isAllowedMimeType() {
+      return request.resource.contentType.matches('image/.*')
+        || request.resource.contentType.matches('audio/.*')
+        || request.resource.contentType == 'application/pdf'
+        || request.resource.contentType == 'text/plain'
+        || request.resource.contentType == 'application/json';
+    }
+
+    // Explicitly ban all executable and script formats
+    function isNotDangerousExecutable() {
+      return !request.resource.contentType.matches('application/x-.*')
+        && !request.resource.contentType.matches('.*executable.*')
+        && !request.resource.name.matches('.*\\.(exe|sh|bat|cmd|ps1|msi|vbs|jar|apk|com|scr|pif)');
+    }
+
+    // User-isolated storage directory
+    match /users/{userId}/{allPaths=**} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) 
+        && isUnderSizeLimit() 
+        && isAllowedMimeType() 
+        && isNotDangerousExecutable();
+      allow delete: if isOwner(userId);
+    }
+
+    // Temporary emergency intake upload path (allows guest emergency uploads with strict limits)
+    match /emergency_uploads/{uploadId} {
+      allow create: if isUnderSizeLimit() 
+        && isAllowedMimeType() 
+        && isNotDangerousExecutable();
+      allow read: if isAuthenticated();
+      allow update, delete: if false; // Immutable once submitted
+    }
+
+    // Deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
